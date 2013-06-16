@@ -14,23 +14,26 @@ uint8_t _initialized;
 uint8_t _interruptEnabled;
 uint8_t oldADCSRA;
 
+boolean redirectTC1;
+
 
 //setting and switching on the analog comparator
-uint8_t analogComp::setOn(uint8_t tempAIN0, uint8_t tempAIN1) {
-    if (_initialized) { //already running
-        return 1;
-    }
-    
-    //initialize the analog comparator (AC)
-    ACSR &= ~(1<<ACIE); //disable interrupts on AC
-    ACSR &= ~(1<<ACD); //switch on the AC
-    
-    //choose the input for non-inverting input
-    if (tempAIN0 == INTERNAL_REFERENCE) {
-        ACSR |= (1<<ACBG); //set Internal Voltage Reference (1V1) 
-    } else {
-        ACSR &= ~(1<<ACBG); //set pin AIN0
-    }
+//if is set to true redirect ACO to the Timer/Counter1, default false
+uint8_t analogComp::setOn(uint8_t tempAIN0, uint8_t tempAIN1, bool enableTC1) {
+	if (_initialized) { //already running
+		return 1;
+	}
+
+	//initialize the analog comparator (AC)
+	ACSR &= ~(1<<ACIE); //disable interrupts on AC
+	ACSR &= ~(1<<ACD); //switch on the AC
+
+	//choose the input for non-inverting input
+	if (tempAIN0 == INTERNAL_REFERENCE) {
+		ACSR |= (1<<ACBG); //set Internal Voltage Reference (1V1) 
+	} else {
+		ACSR &= ~(1<<ACBG); //set pin AIN0
+	}
     
 //for Atmega32U4, only ADMUX is allowed as input for AIN-
 #ifdef ATMEGAxU
@@ -41,16 +44,16 @@ uint8_t analogComp::setOn(uint8_t tempAIN0, uint8_t tempAIN1) {
 
 //AtTiny2313/4313 don't have ADC, so inputs are always AIN0 and AIN1
 #ifndef ATTINYx313
-    //choose the input for inverting input
-    if ((tempAIN1 >= 0) && (tempAIN1 < NUM_ANALOG_INPUTS)) { //set the AC Multiplexed Input using an analog input pin
-        oldADCSRA = ADCSRA;
-        ADCSRA &= ~(1<<ADEN);
-        ADMUX &= ~31; //reset the first 5 bits
-        ADMUX |= tempAIN1; //choose the ADC channel (0..NUM_ANALOG_INPUTS-1)
-        AC_REGISTER |= (1<<ACME);
-    } else {
-        AC_REGISTER &= ~(1<<ACME); //set pin AIN1 
-    }
+	//choose the input for inverting input
+	if ((tempAIN1 >= 0) && (tempAIN1 < NUM_ANALOG_INPUTS)) { //set the AC Multiplexed Input using an analog input pin
+		oldADCSRA = ADCSRA;
+		ADCSRA &= ~(1<<ADEN);
+		ADMUX &= ~31; //reset the first 5 bits
+		ADMUX |= tempAIN1; //choose the ADC channel (0..NUM_ANALOG_INPUTS-1)
+		AC_REGISTER |= (1<<ACME);
+	} else {
+		AC_REGISTER &= ~(1<<ACME); //set pin AIN1 
+	}
 #endif
 
 //disable digital buffer on pins AIN0 && AIN1 to reduce current consumption
@@ -63,10 +66,19 @@ uint8_t analogComp::setOn(uint8_t tempAIN0, uint8_t tempAIN1) {
 #elif defined (ATTINYx313)
 	DIDR &= ~((1<<AIN1D) | (1<<AIN0D));
 #elif defined (ATMEGAx8) || defined(ATMEGAx4) || defined(ATMEGAx0)
-    DIDR1 &= ~((1<<AIN1D) | (1<<AIN0D)); 
+	DIDR1 &= ~((1<<AIN1D) | (1<<AIN0D)); 
 #endif
-    _initialized = 1;
-    return 0; //OK
+
+	//redirect ACO to the Timer/Counter1, if enabled, default enableTC1 = false 
+	if (enableTC1){ // if enabled = true, redirect ACO to the TC1
+		ACSR &= ~(1<<ACIC); // redirect ACO to the Timer/Counter1
+		redirectTC1 = true;
+	} else {
+		redirectTC1 = false;	
+	}
+
+	_initialized = 1;
+	return 0; //OK
 }
 
 
@@ -111,14 +123,19 @@ void analogComp::disableInterrupt(void) {
 
 //switch off the analog comparator
 void analogComp::setOff() {
-    if (_initialized) {
+	if (_initialized) {
 		if (_interruptEnabled) {
 			ACSR &= ~(1<<ACIE); //disable interrupts on AC events
 			_interruptEnabled = 0;
 		}
-        ACSR |= (1<<ACD); //switch off the AC
+    ACSR |= (1<<ACD); //switch off the AC
+
+	//if enabled set off the ACO redirect to the Timer/Counter1, default is disabled 
+	if (redirectTC1){
+		ACSR &= ~(1<<ACIC); // set off the ACO redirect to the Timer/Counter1
+	}
         
-        //reenable digital buffer on pins AIN0 && AIN1
+//reenable digital buffer on pins AIN0 && AIN1
 #if defined(ATTINYx5)
 		DIDR0 |= ((1<<AIN1D) | (1<<AIN0D)); 
 #elif defined(ATTINYx4)
@@ -132,12 +149,12 @@ void analogComp::setOff() {
 #endif
 
 #ifndef ATTINYx313
-        if ((AC_REGISTER & (1<<ACME)) == 1) { //we must reset the ADC
-            ADCSRA = oldADCSRA;
-        }
+		if ((AC_REGISTER & (1<<ACME)) == 1) { //we must reset the ADC
+				ADCSRA = oldADCSRA;
+		}
 #endif
 		_initialized = 0;
-    }
+	}
 }
 
 

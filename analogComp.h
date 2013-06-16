@@ -76,12 +76,14 @@ const uint8_t AIN0 = 0;
 const uint8_t INTERNAL_REFERENCE = 1;
 const uint8_t AIN1 = 255;
 
+//boolean enableT1 = false;
+
 
 class analogComp {
 	public: 
 		//public methods
 		//analogComp();
-        uint8_t setOn(uint8_t = AIN0, uint8_t = AIN1);
+        uint8_t setOn(uint8_t = AIN0, uint8_t = AIN1, boolean enableT1 = false);
         void setOff(void);
         void enableInterrupt(void (*)(void), uint8_t tempMode = CHANGE);
         void disableInterrupt(void);
