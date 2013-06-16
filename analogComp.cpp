@@ -14,7 +14,7 @@ uint8_t _initialized;
 uint8_t _interruptEnabled;
 uint8_t oldADCSRA;
 
-boolean redirectTC1;
+bool redirectTC1;
 
 
 //setting and switching on the analog comparator

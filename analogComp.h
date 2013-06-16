@@ -83,7 +83,7 @@ class analogComp {
 	public: 
 		//public methods
 		//analogComp();
-        uint8_t setOn(uint8_t = AIN0, uint8_t = AIN1, boolean enableT1 = false);
+        uint8_t setOn(uint8_t = AIN0, uint8_t = AIN1, bool enableT1 = false);
         void setOff(void);
         void enableInterrupt(void (*)(void), uint8_t tempMode = CHANGE);
         void disableInterrupt(void);
